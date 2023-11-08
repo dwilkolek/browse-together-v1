@@ -43,8 +43,8 @@ function createQuerySelector(element) {
   }
 
   if (error) {
-    console.error(element);
-    throw new Error("Unable to create query selector");
+    // console.error("Unable to create query selector", element);
+    return;
   }
 
   path.push("body");
@@ -54,55 +54,95 @@ function createQuerySelector(element) {
   return querySelector;
 }
 
-const sock = new WebSocket(`${window.location.origin.replace("http", "ws")}/ws/cursors`);
-const referenceBoxes = ["article", "section", "body"];
-addEventListener("pointermove", function (ev) {
-  const hovered = document.querySelectorAll(":hover");
-  let selectedEl = hovered[hovered.length - 1];
-  for (let i = hovered.length - 1; i > 0; i--) {
-    const el = hovered[i];
-    if (referenceBoxes.includes(el.nodeName.toLocaleLowerCase())) {
-      selectedEl = el;
-      break;
-    }
-  }
-
-  const rect = selectedEl.getBoundingClientRect();
-  sock.send(
-    JSON.stringify({
-      elementQuery: createQuerySelector(selectedEl),
-      x: (ev.clientX - rect.left) / rect.width,
-      y: (ev.clientY - rect.top) / rect.height,
-    })
-  );
+const blankPosition = JSON.stringify({
+  elementQuery: undefined,
+  x: -1,
+  y: -1,
 });
 
-sock.onmessage = (event) => {
-  const positions = JSON.parse(event.data ?? "[]");
-  let notHandled = [...positions];
-  document.querySelectorAll(".cursor").forEach((c) => {
-    newPosition = positions.find((p) => p.clientId == c.dataset.clientId);
-    if (newPosition) {
-      notHandled = notHandled.filter(
-        (n) => n.clientId !== newPosition.clientId
-      );
-      updateNodePosition(newPosition, c);
-      c.style.top = newPosition.top;
-    } else {
-      c.remove();
+let sock = null;
+const referenceBoxes = ["section"];
+let lastPosition = blankPosition;
+addEventListener("pointermove", function (ev) {
+  if (sock) {
+    const hovered = document.querySelectorAll(":hover");
+    let selectedEl = hovered[hovered.length - 1];
+    let valid = false;
+    for (let i = hovered.length - 1; i > 0; i--) {
+      const el = hovered[i];
+      if (referenceBoxes.includes(el.nodeName.toLocaleLowerCase())) {
+        selectedEl = el;
+        valid = true;
+        break;
+      }
     }
-  });
-  for (const cursorPosition of notHandled) {
+    // if (!valid && lastPosition == blankPosition) {
+    //   return
+    // }
 
-    const cursorEl = document.createElement("div");
-    cursorEl.dataset.clientId = cursorPosition.clientId;
+    let nextPosition = blankPosition;
+    if (valid) {
+      const rect = selectedEl.getBoundingClientRect();
+      const querySelector = createQuerySelector(selectedEl);
 
-    cursorEl.classList.add("cursor");
-
-    updateNodePosition(cursorPosition, cursorEl);
-    document.body.appendChild(cursorEl);
+      if (querySelector) {
+        nextPosition = JSON.stringify({
+          elementQuery: createQuerySelector(selectedEl),
+          x: (ev.clientX - rect.left) / rect.width,
+          y: (ev.clientY - rect.top) / rect.height,
+        });
+      }
+    }
+    
+    if (nextPosition != lastPosition) {
+      lastPosition = nextPosition;
+      sock.send(lastPosition);
+    }
   }
-};
+});
+
+async function createSession() {
+  const response = await fetch("/api/v1/sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "aaa",
+      baseLocation: "aaa",
+      creator: "aaa",
+    }),
+  });
+  const session = await response.json();
+  sock = new WebSocket(
+    `${window.location.origin.replace("http", "ws")}/ws/${session.id}/cursors`
+  );
+  sock.onmessage = (event) => {
+    const positions = JSON.parse(event.data ?? "[]");
+    let notHandled = [...positions];
+    document.querySelectorAll(".cursor")?.forEach((c) => {
+      newPosition = positions.find((p) => p.clientId == c.dataset.clientId);
+      if (newPosition) {
+        notHandled = notHandled.filter(
+          (n) => n.clientId !== newPosition.clientId
+        );
+        updateNodePosition(newPosition, c);
+        c.style.top = newPosition.top;
+      } else {
+        c.remove();
+      }
+    });
+    for (const cursorPosition of notHandled) {
+      const cursorEl = document.createElement("div");
+      cursorEl.dataset.clientId = cursorPosition.clientId;
+
+      cursorEl.classList.add("cursor");
+
+      updateNodePosition(cursorPosition, cursorEl);
+      document.body.appendChild(cursorEl);
+    }
+  };
+}
 
 function updateNodePosition(cursorPosition, element) {
   const boxElement = document.querySelector(cursorPosition.elementQuery);

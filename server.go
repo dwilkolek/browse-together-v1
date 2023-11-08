@@ -95,6 +95,7 @@ func main() {
 	})
 
 	internal.SetupSessionApi(app)
+	go internal.StartListening()
 
 	log.Fatal(app.Listen(fmt.Sprintf(":%s", port)))
 }

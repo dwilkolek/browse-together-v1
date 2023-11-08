@@ -1,0 +1,26 @@
+section {
+    width: 500px;
+    height: 300px;
+    display: block;
+    float: left;
+    background-color: #666666;
+}
+
+.divider {
+    width: 50px;
+    height: 300px;
+    display: block;
+    float: left;
+    background-color: red;
+}
+
+.cursor {
+    position: absolute;
+    background: url("/static/assets/icons/cursor.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    width: 12px;
+    height: 18px;
+    margin-left: -3px;
+    margin-top: 0px;
+}

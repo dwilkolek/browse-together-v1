@@ -3,29 +3,14 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
-
-var client *redis.Client
 
 var sessionsKey = "sessions"
 var sessionPrefix = "session-"
-var clientPrefix = "client-"
 var lockPrefix = "lock-"
-
-func init() {
-	client = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
-	pong, err := client.Ping(context.TODO()).Result()
-	fmt.Println(pong, err)
-}
+var sessionClientIdPrefix = "sessionClientIdCounter-"
 
 func StoreSession(session Session) error {
 	lockSession(session.Id)
@@ -41,6 +26,8 @@ func StoreSession(session Session) error {
 		log.Printf("Err! %s\n", err)
 		return err
 	}
+
+	startPositionStreaming(session.Id)
 	log.Printf("Stored in redis %s\n", session.Id)
 	return nil
 }
@@ -85,7 +72,17 @@ func DeleteSession(id string) error {
 		log.Printf("Failed to remove session %s\n", id)
 		return err
 	}
+
+	stopPositionStreaming(id)
 	return nil
+}
+
+func GetNewClientId(sessionId string) int64 {
+	newValue, err := client.Incr(context.Background(), sessionClientIdPrefix+sessionId).Result()
+	if err != nil {
+		panic(err)
+	}
+	return newValue
 }
 
 func lockSession(id string) {
