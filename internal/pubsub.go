@@ -70,7 +70,7 @@ func StartListening() {
 			break
 		}
 		// fmt.Printf("Received message from %s: %s\n", msg.Channel, msg.Payload)
-		var positionState PositionState
+
 		if strings.HasPrefix(msg.Payload, "START-") {
 			sessionId := strings.TrimPrefix(msg.Payload, "START-")
 			log.Printf("Starting position listening %s\n", sessionId)
@@ -82,11 +82,6 @@ func StartListening() {
 			}
 			go onPositionUpdate(state[sessionId])
 			go notifyClientsLoop(state[sessionId])
-		}
-
-		err := json.Unmarshal([]byte(msg.Payload), &positionState)
-		if err != nil {
-			log.Printf("Failed to unmarshal PositionState: %s\n", err)
 		}
 
 	}
@@ -152,7 +147,6 @@ func notifyClientsLoop(sessionState *State) {
 		for {
 			select {
 			case <-ticker.C:
-				log.Println("tick " + sessionState.sessionId)
 				notifyClients(sessionState)
 			case <-quit:
 				log.Println("stop " + sessionState.sessionId)

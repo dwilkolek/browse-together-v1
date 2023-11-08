@@ -102,18 +102,11 @@ addEventListener("pointermove", function (ev) {
 });
 
 async function createSession() {
-  const response = await fetch("/api/v1/sessions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: "aaa",
-      baseLocation: "aaa",
-      creator: "aaa",
-    }),
-  });
-  const session = await response.json();
+  const session = await apiCreateSession()
+  joinSession(session)
+}
+
+function joinSession(session) {
   sock = new WebSocket(
     `${window.location.origin.replace("http", "ws")}/ws/${session.id}/cursors`
   );
