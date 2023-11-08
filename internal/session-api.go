@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var sessions = make(map[string]Session)
+// var sessions = make(map[string]Session)
 
 func SetupSessionApi(app *fiber.App) {
 	v1 := app.Group("/api/v1/sessions")
@@ -19,27 +19,28 @@ func SetupSessionApi(app *fiber.App) {
 			Name:    cmd.Name,
 			Active:  true,
 			Creator: cmd.Creator,
-			Users:   1,
+			Users:   0,
 		}
-		sessions[newSession.Id] = newSession
-		StoreSession(newSession)
-		return c.JSON(newSession)
+		// sessions[newSession.Id] = newSession
+		if err := StoreSession(newSession); err == nil {
+			return c.JSON(newSession)
+		}
+
+		return fiber.NewError(fiber.StatusInternalServerError)
 	})
 	v1.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(GetSessions())
 	})
 	v1.Get("/:id", func(c *fiber.Ctx) error {
 		expectedKey := c.Params("id")
-		for key, session := range sessions {
-			if key == expectedKey {
-				return c.JSON(session)
-			}
+		if session, err := GetSession(expectedKey); err == nil {
+			return c.JSON(session)
 		}
 		return fiber.NewError(fiber.StatusNotFound)
 	})
 	v1.Delete("/:id", func(c *fiber.Ctx) error {
 		id := c.Params("id")
-		delete(sessions, id)
+		DeleteSession(id)
 		return nil
 	})
 }
