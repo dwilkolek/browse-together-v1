@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -11,9 +14,16 @@ func init() {
 }
 
 func getRedis() *redis.Client {
-	return redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	addr := os.Getenv("REDIS_URL")
+	if addr == "" {
+		addr = "redis://default:@localhost:6379/0"
+
+	}
+	opt, err := redis.ParseURL(addr)
+	fmt.Printf("%v\n", opt)
+	if err != nil {
+		panic(err)
+	}
+
+	return redis.NewClient(opt)
 }

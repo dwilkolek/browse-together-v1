@@ -13,13 +13,12 @@ async function apiCreateSession() {
   return await response.json();
 }
 
-
 async function apiListSessions() {
-    const response = await fetch("/api/v1/sessions", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      }
-    });
-    return await response.json();
-  }
+  const response = await fetch("/api/v1/sessions", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return await response.json();
+}

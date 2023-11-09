@@ -13,17 +13,16 @@
     <link rel="stylesheet" href="/static/styles/custom.css" />
     <script>
       async function showSessions() {
-        const sessions = await apiListSessions()
-        const container = document.querySelector("#sessions")
-        container.innerHTML = '';
-        sessions.forEach(element => {
-          const btn = document.createElement("button")
-          btn.onclick = () => joinSession(element)
-          btn.textContent = element.id
-          container.appendChild(btn)
+        const sessions = await apiListSessions();
+        const container = document.querySelector("#sessions");
+        container.innerHTML = "";
+        sessions.forEach((element) => {
+          const btn = document.createElement("button");
+          btn.onclick = () => joinSession(element);
+          btn.textContent = element.id;
+          container.appendChild(btn);
         });
       }
-      
     </script>
   </head>
 
@@ -32,9 +31,7 @@
       Browse buddy
       <button onclick="createSession()">Start Session</button>
       <button onclick="showSessions()">Fetch Sessions</button>
-      <div id="sessions">
-        <div>aaa</div>
-      </div>
+      <div id="sessions"></div>
     </div>
     <section></section>
     <div class="divider"></div>

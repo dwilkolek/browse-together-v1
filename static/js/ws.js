@@ -64,14 +64,14 @@ const referenceBoxes = ["section"];
 let toSend = blankPosition;
 let lastSend = blankPosition;
 setInterval(() => {
-  const msg = toSend
+  const msg = toSend;
   if (sock && toSend != lastSend) {
-    console.log("Sending", blankPosition == msg)
-    lastSend = toSend
-    sock.send(msg)
-    return
+    console.log("Sending", blankPosition == msg);
+    lastSend = toSend;
+    sock.send(msg);
+    return;
   } else {
-    console.log('NOOP')
+    console.log("NOOP");
   }
 }, 16);
 
@@ -108,7 +108,7 @@ async function createSession() {
   const session = await apiCreateSession();
   joinSession(session);
 }
-const cursors = []
+const cursors = [];
 function joinSession(session) {
   sock = new WebSocket(
     `${window.location.origin.replace("http", "ws")}/ws/${session.id}/cursors`
@@ -116,19 +116,18 @@ function joinSession(session) {
   sock.onmessage = (event) => {
     const positions = JSON.parse(event.data ?? "[]");
     for (const cursorPosition of positions) {
-      let cursorEl = cursors[cursorPosition.clientId]
+      let cursorEl = cursors[cursorPosition.clientId];
       if (!cursorEl) {
         const cursorEl = document.createElement("div");
-      
+
         cursorEl.dataset.clientId = cursorPosition.clientId;
         cursorEl.classList.add("cursor", `cursor-${cursorPosition.clientId}`);
         updateNodePosition(cursorPosition, cursorEl);
         document.body.appendChild(cursorEl);
-        cursors[cursorPosition.clientId] = cursorEl
+        cursors[cursorPosition.clientId] = cursorEl;
       } else {
         updateNodePosition(cursorPosition, cursorEl);
       }
-      
     }
   };
 }
