@@ -5,6 +5,9 @@ section {
     float: left;
     background-color: #666666;
 }
+section:hover {
+    background-color: #222222;
+}
 
 .divider {
     width: 50px;
@@ -21,6 +24,7 @@ section {
     background-repeat: no-repeat;
     width: 12px;
     height: 18px;
-    margin-left: -3px;
+    margin-left: -5px;
     margin-top: 0px;
+    pointer-events: none;
 }
