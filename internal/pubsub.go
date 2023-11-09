@@ -174,8 +174,8 @@ func notifyClients(sessionState *State) {
 			if ps.ElementQuery != "" {
 				toSend = append(toSend, ps)
 			}
-
 		}
+
 		if err = conn.WriteJSON(toSend); err != nil {
 			log.Println("write:", err)
 			delete(sessionState.states, connClientId)

@@ -66,12 +66,8 @@ let lastSend = blankPosition;
 setInterval(() => {
   const msg = toSend;
   if (sock && toSend != lastSend) {
-    console.log("Sending", blankPosition == msg);
     lastSend = toSend;
     sock.send(msg);
-    return;
-  } else {
-    console.log("NOOP");
   }
 }, 16);
 
@@ -114,7 +110,13 @@ function joinSession(session) {
     `${window.location.origin.replace("http", "ws")}/ws/${session.id}/cursors`
   );
   sock.onmessage = (event) => {
+    console.time('onmessage')
     const positions = JSON.parse(event.data ?? "[]");
+    cursors.forEach(c => {
+      if (c) {
+        c.style.display = 'none'
+      }
+    })
     for (const cursorPosition of positions) {
       let cursorEl = cursors[cursorPosition.clientId];
       if (!cursorEl) {
@@ -128,7 +130,11 @@ function joinSession(session) {
       } else {
         updateNodePosition(cursorPosition, cursorEl);
       }
+      cursorEl.style.display = 'block'
     }
+
+
+    console.timeEnd('onmessage')
   };
 }
 
