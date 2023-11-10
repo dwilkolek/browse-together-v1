@@ -41,26 +41,16 @@ func SetupWebsockets(app *fiber.App) {
 				log.Println("read:", err)
 				break
 			}
-			var event PositionState
+			var event UpdatePositionCmdDTO
 			json.Unmarshal(msg, &event)
-			updatePosition(sessionId, PositionState{
-				ClientId:     clientId,
-				X:            event.X,
-				Y:            event.Y,
-				Height:       event.Height,
-				Width:        event.Width,
-				ElementQuery: event.ElementQuery,
+			updatePosition(sessionId, PositionStateDTO{
+				MemberId: clientId,
+				X:        event.X,
+				Y:        event.Y,
+				Selector: event.Selector,
+				Location: event.Location,
 			})
 		}
 
 	}))
-}
-
-type PositionState struct {
-	ClientId     int64   `json:"clientId"`
-	X            float64 `json:"x"`
-	Y            float64 `json:"y"`
-	Height       float64 `json:"height"`
-	Width        float64 `json:"width"`
-	ElementQuery string  `json:"elementQuery"`
 }

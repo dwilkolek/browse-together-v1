@@ -18,7 +18,7 @@ const internal = "internal"
 type State struct {
 	sessionId    string
 	clients      map[int64]*websocket.Conn
-	states       map[int64]PositionState
+	states       map[int64]PositionStateDTO
 	updateNeeded bool
 	lock         sync.Mutex
 }
@@ -46,10 +46,10 @@ func (state *State) deleteClient(clientId int64) {
 	delete(state.states, clientId)
 	delete(state.clients, clientId)
 }
-func (state *State) newPosition(newPosition PositionState) {
+func (state *State) newPosition(newPosition PositionStateDTO) {
 	state.lockMe("newPosition")
 	defer state.unlockMe("newPosition")
-	state.states[newPosition.ClientId] = newPosition
+	state.states[newPosition.MemberId] = newPosition
 	state.updateNeeded = true
 }
 
@@ -77,7 +77,7 @@ func StartListening() {
 			state[sessionId] = &State{
 				sessionId:    sessionId,
 				clients:      make(map[int64]*websocket.Conn),
-				states:       make(map[int64]PositionState),
+				states:       make(map[int64]PositionStateDTO),
 				updateNeeded: false,
 			}
 			go onPositionUpdate(state[sessionId])
@@ -110,10 +110,10 @@ func onPositionUpdate(sessionState *State) {
 			delete(state, sessionState.sessionId)
 			break
 		}
-		var positionState PositionState
+		var positionState PositionStateDTO
 		err := json.Unmarshal([]byte(msg.Payload), &positionState)
 		if err != nil {
-			log.Printf("Failed to unmarshal PositionState: %s\n", err)
+			log.Printf("Failed to unmarshal PositionStateDTO: %s\n", err)
 		}
 
 		fmt.Printf("Received message from %s: %s\n", msg.Channel, msg.Payload)
@@ -132,10 +132,10 @@ func startPositionStreaming(sessionId string) {
 	client.Publish(context.Background(), sessionStreamPrefix+sessionId, "START").Result()
 }
 
-func updatePosition(sessionId string, update PositionState) {
+func updatePosition(sessionId string, update PositionStateDTO) {
 	data, err := json.Marshal(update)
 	if err != nil {
-		log.Printf("Failed to marshal PositionState: %s\n", err)
+		log.Printf("Failed to marshal PositionStateDTO: %s\n", err)
 	}
 	client.Publish(context.Background(), sessionStreamPrefix+sessionId, data)
 }
@@ -169,9 +169,9 @@ func notifyClients(sessionState *State) {
 	}()
 	var err error
 	for connClientId, conn := range sessionState.clients {
-		toSend := []PositionState{}
+		toSend := []PositionStateDTO{}
 		for _, ps := range sessionState.states {
-			if ps.ElementQuery != "" {
+			if ps.Selector != "" {
 				toSend = append(toSend, ps)
 			}
 		}

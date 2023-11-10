@@ -13,6 +13,7 @@ import (
 	"github.com/dwilkolek/browse-together/internal"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/template/html/v2"
 )
@@ -38,6 +39,7 @@ func main() {
 	app := fiber.New(fiber.Config{
 		Views: engine,
 	})
+	app.Use(cors.New())
 
 	internal.SetupWebsockets(app)
 
