@@ -1,4 +1,4 @@
-package internal
+package dto
 
 type SessionMemberDTO struct {
 	GivenIdentifier string  `json:"givenIdentifier"`

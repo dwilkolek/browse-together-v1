@@ -1,4 +1,4 @@
-package internal
+package db
 
 import (
 	"fmt"
@@ -7,13 +7,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var client *redis.Client
+var Client *redis.Client = getRedisClient()
 
-func init() {
-	client = getRedis()
-}
-
-func getRedis() *redis.Client {
+func getRedisClient() *redis.Client {
 	addr := os.Getenv("REDIS_URL")
 	if addr == "" {
 		addr = "redis://default:@localhost:6379/0"

@@ -1,10 +1,12 @@
-package internal
+package session
 
 import (
 	"context"
 	"encoding/json"
 	"log"
 	"time"
+
+	"github.com/dwilkolek/browse-together/db"
 )
 
 var sessionsKey = "sessions"
@@ -17,12 +19,12 @@ func StoreSession(session Session) error {
 	defer releaseSession(session.Id)
 	jsonStr, _ := json.Marshal(session)
 
-	if _, err := client.SAdd(context.Background(), sessionsKey, session.Id).Result(); err != nil {
+	if _, err := db.Client.SAdd(context.Background(), sessionsKey, session.Id).Result(); err != nil {
 		log.Printf("Err! %s\n", err)
 		return err
 	}
 
-	if _, err := client.Set(context.Background(), sessionPrefix+session.Id, jsonStr, 0).Result(); err != nil {
+	if _, err := db.Client.Set(context.Background(), sessionPrefix+session.Id, jsonStr, 0).Result(); err != nil {
 		log.Printf("Err! %s\n", err)
 		return err
 	}
@@ -34,7 +36,7 @@ func StoreSession(session Session) error {
 
 func GetSessions() []Session {
 	var sessions []Session = make([]Session, 0)
-	value, err := client.SMembers(context.Background(), sessionsKey).Result()
+	value, err := db.Client.SMembers(context.Background(), sessionsKey).Result()
 	if err != nil {
 		log.Printf("Err! %s\n", err)
 		return sessions
@@ -51,7 +53,7 @@ func GetSessions() []Session {
 
 func GetSession(id string) (Session, error) {
 	var session Session
-	value, err := client.Get(context.Background(), sessionPrefix+id).Result()
+	value, err := db.Client.Get(context.Background(), sessionPrefix+id).Result()
 	if err != nil {
 		log.Printf("Err! %s\n", err)
 		return session, err
@@ -64,11 +66,11 @@ func GetSession(id string) (Session, error) {
 func DeleteSession(id string) error {
 	lockSession(id)
 	defer releaseSession(id)
-	if _, err := client.SRem(context.TODO(), sessionsKey, id).Result(); err != nil {
+	if _, err := db.Client.SRem(context.TODO(), sessionsKey, id).Result(); err != nil {
 		log.Printf("Failed to remove from sessions %s\n", id)
 		return err
 	}
-	if _, err := client.Del(context.TODO(), sessionPrefix+id).Result(); err != nil {
+	if _, err := db.Client.Del(context.TODO(), sessionPrefix+id).Result(); err != nil {
 		log.Printf("Failed to remove session %s\n", id)
 		return err
 	}
@@ -77,18 +79,10 @@ func DeleteSession(id string) error {
 	return nil
 }
 
-func GetNewClientId(sessionId string) int64 {
-	newValue, err := client.Incr(context.Background(), sessionClientIdPrefix+sessionId).Result()
-	if err != nil {
-		panic(err)
-	}
-	return newValue
-}
-
 func lockSession(id string) {
 	log.Printf("Locking %s\n", id)
 	for {
-		res, _ := client.SetNX(context.Background(), lockPrefix+id, true, time.Minute).Result()
+		res, _ := db.Client.SetNX(context.Background(), lockPrefix+id, true, time.Minute).Result()
 		if res {
 			return
 		}
@@ -98,5 +92,12 @@ func lockSession(id string) {
 
 func releaseSession(id string) {
 	log.Printf("Releasing lock: %s\n", id)
-	client.Del(context.Background(), lockPrefix+id)
+	db.Client.Del(context.Background(), lockPrefix+id)
+}
+
+type Session struct {
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	Creator      string `json:"creator"`
+	BaseLocation string `json:"baseLocation"`
 }
