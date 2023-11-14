@@ -17,11 +17,9 @@ type FiberServer struct {
 	*fiber.App
 }
 
-func New(views fiber.Views) *FiberServer {
+func New() *FiberServer {
 	server := &FiberServer{
-		App: fiber.New(fiber.Config{
-			Views: views,
-		}),
+		App: fiber.New(),
 	}
 
 	server.Use(cors.New())
