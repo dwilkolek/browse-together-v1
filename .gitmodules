@@ -4,3 +4,6 @@
 [submodule "sdk"]
 	path = sdk
 	url = https://github.com/dwilkolek/browse-together-sdk.git
+[submodule "infra"]
+	path = infra
+	url = https://github.com/dwilkolek/browse-together-infra.git
