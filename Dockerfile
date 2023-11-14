@@ -1,4 +1,4 @@
-FROM golang:1.21
+FROM golang:1.21-alpine
 
 WORKDIR /app
 
@@ -7,8 +7,9 @@ RUN go mod download
 
 COPY . ./
 
-RUN go build -o /go-docker-demo
+RUN go build -o /api
 
-EXPOSE 8080
+EXPOSE 80
+EXPOSE 443
 
-CMD [ "/go-docker-demo" ]
+CMD [ "/api" ]

@@ -14,8 +14,11 @@ import (
 )
 
 func (s *FiberServer) RegisterFiberRoutes() {
+	s.App.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Browse Together")
+	})
 	s.App.Get("/health", func(c *fiber.Ctx) error {
-		return c.Send(nil)
+		return c.SendString("OK")
 	})
 
 	v1 := s.App.Group("/api/v1/sessions")

@@ -33,15 +33,7 @@ func New() *FiberServer {
 		}
 		return fiber.ErrUpgradeRequired
 	})
-	server.Use(func(c *fiber.Ctx) error {
 
-		c.Response().Header.Add("X-XSS-Protection", "1; mode=block")
-		c.Response().Header.Add("X-Frame-Options", "DENY")
-		c.Response().Header.Add("X-Content-Type-Options", "nosniff")
-		c.Response().Header.Add("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
-
-		return c.Next()
-	})
 	go session.StartStreaming()
 	server.RegisterFiberRoutes()
 	return server
