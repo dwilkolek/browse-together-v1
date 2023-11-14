@@ -9,8 +9,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
-	"github.com/dwilkolek/browse-together/dto"
-	"github.com/dwilkolek/browse-together/session"
+	"github.com/dwilkolek/browse-together-api/dto"
+	"github.com/dwilkolek/browse-together-api/session"
 )
 
 func (s *FiberServer) RegisterFiberRoutes() {

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dwilkolek/browse-together/db"
-	"github.com/dwilkolek/browse-together/dto"
+	"github.com/dwilkolek/browse-together-api/db"
+	"github.com/dwilkolek/browse-together-api/dto"
 	"github.com/gofiber/contrib/websocket"
 )
 

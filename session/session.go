@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dwilkolek/browse-together/db"
+	"github.com/dwilkolek/browse-together-api/db"
 )
 
 var sessionsKey = "sessions"

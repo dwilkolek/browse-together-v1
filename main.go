@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/dwilkolek/browse-together/internal/server"
+	"github.com/dwilkolek/browse-together-api/internal/server"
 )
 
 func main() {
