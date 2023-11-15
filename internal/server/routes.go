@@ -9,8 +9,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"github.com/dwilkolek/browse-together-api/db"
 	"github.com/dwilkolek/browse-together-api/dto"
-	"github.com/dwilkolek/browse-together-api/session"
+	"github.com/dwilkolek/browse-together-api/streaming"
 )
 
 func (s *FiberServer) RegisterFiberRoutes() {
@@ -37,14 +38,14 @@ func (s *FiberServer) createSessionHandler(c *fiber.Ctx) error {
 	if err := c.BodyParser(&cmd); err != nil {
 		return err
 	}
-	newSession := session.Session{
+	newSession := db.Session{
 		Id:           uuid.New().String(),
 		Name:         cmd.Name,
 		Creator:      cmd.Creator,
 		BaseLocation: cmd.BaseLocation,
 	}
 
-	if err := session.StoreSession(newSession); err == nil {
+	if err := db.GetDb().StoreSession(newSession); err == nil {
 		return c.JSON(toDto(newSession))
 	}
 
@@ -52,7 +53,7 @@ func (s *FiberServer) createSessionHandler(c *fiber.Ctx) error {
 }
 
 func (s *FiberServer) getAllSessionsHandler(c *fiber.Ctx) error {
-	sessions := session.GetSessions()
+	sessions := db.GetDb().GetSessions()
 	sessionsDto := make([]dto.SessionDTO, len(sessions))
 	for i, session := range sessions {
 		sessionsDto[i] = toDto(session)
@@ -62,7 +63,7 @@ func (s *FiberServer) getAllSessionsHandler(c *fiber.Ctx) error {
 
 func (s *FiberServer) getSessionHandler(c *fiber.Ctx) error {
 	expectedKey := c.Params("id")
-	if session, err := session.GetSession(expectedKey); err == nil {
+	if session, err := db.GetDb().GetSession(expectedKey); err == nil {
 		return c.JSON(toDto(session))
 	}
 	return fiber.NewError(fiber.StatusNotFound)
@@ -70,7 +71,8 @@ func (s *FiberServer) getSessionHandler(c *fiber.Ctx) error {
 
 func (s *FiberServer) deleteSessionHandler(c *fiber.Ctx) error {
 	id := c.Params("id")
-	session.DeleteSession(id)
+	db.GetDb().DeleteSession(id)
+	streaming.CloseSession(id)
 	return nil
 }
 func (s *FiberServer) getJoinSessionHandler(c *fiber.Ctx) error {
@@ -89,32 +91,45 @@ func (s *FiberServer) sessionHandler(c *websocket.Conn) {
 	)
 	defer c.Close()
 
-	sessionState, err := session.GetSessionState(sessionId)
-	if err != nil {
-		log.Printf("No session state: %s\n", err)
-		return
-	}
-	memberId := sessionState.JoinSession(c)
+	memberId, sessionState := streaming.JoinSession(sessionId, c)
+	done := sessionState.OnSessionClosed()
+	var newMessage chan dto.PositionStateDTO = make(chan dto.PositionStateDTO)
+
+	go func() {
+		for {
+			if _, msg, err = c.ReadMessage(); err != nil {
+				sessionState.MemberLeft(memberId)
+				log.Println("read:", err)
+				break
+			}
+			var event dto.UpdatePositionCmdDTO
+			json.Unmarshal(msg, &event)
+			newMessage <- dto.PositionStateDTO{
+				MemberId: memberId,
+				X:        event.X,
+				Y:        event.Y,
+				Selector: event.Selector,
+				Location: event.Location,
+			}
+		}
+	}()
 
 	for {
-		if _, msg, err = c.ReadMessage(); err != nil {
-			log.Println("read:", err)
-			break
-		}
-		var event dto.UpdatePositionCmdDTO
-		json.Unmarshal(msg, &event)
+		log.Println("Loop")
 
-		sessionState.UpdatePosition(dto.PositionStateDTO{
-			MemberId: memberId,
-			X:        event.X,
-			Y:        event.Y,
-			Selector: event.Selector,
-			Location: event.Location,
-		})
+		select {
+		case pos := <-newMessage:
+			sessionState.SessionMemberPositionChange(pos)
+
+		case <-done:
+			log.Printf("Closing conn!")
+			return
+		}
+
 	}
 
 }
-func toDto(session session.Session) dto.SessionDTO {
+func toDto(session db.Session) dto.SessionDTO {
 	return dto.SessionDTO{
 		Id:                session.Id,
 		JoinUrl:           fmt.Sprintf("/api/v1/sessions/%s/join", session.Id),

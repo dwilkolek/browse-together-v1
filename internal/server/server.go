@@ -1,12 +1,6 @@
 package server
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-	"strings"
-
-	"github.com/dwilkolek/browse-together-api/session"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -34,34 +28,6 @@ func New() *FiberServer {
 		return fiber.ErrUpgradeRequired
 	})
 
-	go session.StartStreaming()
 	server.RegisterFiberRoutes()
 	return server
-}
-
-func (server *FiberServer) RedirectToHttpsWww() {
-	server.Use(func(c *fiber.Ctx) error {
-
-		host := string(c.Request().Host())
-		uri := string(c.Request().RequestURI())
-		protocol := c.Protocol()
-		redirect := false
-		if protocol == "http" {
-			redirect = true
-			protocol = "https"
-		}
-
-		if strings.HasPrefix(host, "www.") {
-			redirect = true
-			host = host[4:]
-		}
-
-		if redirect {
-			target := fmt.Sprintf("%s://%s%s", protocol, host, uri)
-			log.Println("Redirecting to: " + target)
-			return c.Redirect(target, http.StatusMovedPermanently)
-		}
-		return c.Next()
-	})
-
 }

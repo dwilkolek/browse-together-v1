@@ -1,15 +1,30 @@
 package db
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-var Client *redis.Client = getRedisClient()
+const sessionsKey = "sessions"
+const sessionPrefix = "session-"
+const lockPrefix = "lock-"
 
-func getRedisClient() *redis.Client {
+type RedisStore struct {
+	*redis.Client
+}
+
+func CreateRedisStore() RedisStore {
+	return RedisStore{
+		createRedisClient(),
+	}
+}
+func createRedisClient() *redis.Client {
 	addr := os.Getenv("REDIS_URL")
 	if addr == "" {
 		addr = "redis://default:@localhost:6379/0"
@@ -22,4 +37,83 @@ func getRedisClient() *redis.Client {
 	}
 
 	return redis.NewClient(opt)
+}
+
+func (s *RedisStore) StoreSession(session Session) error {
+	s.lockSession(session.Id)
+	defer s.releaseSession(session.Id)
+	jsonStr, _ := json.Marshal(session)
+
+	if _, err := s.SAdd(context.Background(), sessionsKey, session.Id).Result(); err != nil {
+		log.Printf("Err! %s\n", err)
+		return err
+	}
+
+	if _, err := s.Set(context.Background(), sessionPrefix+session.Id, jsonStr, 0).Result(); err != nil {
+		log.Printf("Err! %s\n", err)
+		return err
+	}
+
+	log.Printf("Stored in redis %s\n", session.Id)
+	return nil
+}
+
+func (s *RedisStore) GetSessions() []Session {
+	var sessions []Session = make([]Session, 0)
+	value, err := s.SMembers(context.Background(), sessionsKey).Result()
+	if err != nil {
+		log.Printf("Err! %s\n", err)
+		return sessions
+	}
+	for _, sessionId := range value {
+		if session, err := s.GetSession(sessionId); err == nil {
+			sessions = append(sessions, session)
+		}
+
+	}
+
+	return sessions
+}
+
+func (s *RedisStore) GetSession(id string) (Session, error) {
+	var session Session
+	value, err := s.Get(context.Background(), sessionPrefix+id).Result()
+	if err != nil {
+		log.Printf("Err! %s\n", err)
+		return session, err
+	}
+	json.Unmarshal([]byte(value), &session)
+
+	return session, nil
+}
+
+func (s *RedisStore) DeleteSession(id string) error {
+	s.lockSession(id)
+	defer s.releaseSession(id)
+	if _, err := s.SRem(context.TODO(), sessionsKey, id).Result(); err != nil {
+		log.Printf("Failed to remove from sessions %s\n", id)
+		return err
+	}
+	if _, err := s.Del(context.TODO(), sessionPrefix+id).Result(); err != nil {
+		log.Printf("Failed to remove session %s\n", id)
+		return err
+	}
+
+	return nil
+}
+
+func (s *RedisStore) lockSession(id string) {
+	log.Printf("Locking %s\n", id)
+	for {
+		res, _ := s.SetNX(context.Background(), lockPrefix+id, true, time.Minute).Result()
+		if res {
+			return
+		}
+	}
+
+}
+
+func (s *RedisStore) releaseSession(id string) {
+	log.Printf("Releasing lock: %s\n", id)
+	s.Del(context.Background(), lockPrefix+id)
 }
