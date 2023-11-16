@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "browse-together-api"
+app = "browse-together"
 primary_region = "waw"
 
 [build]
@@ -12,6 +12,8 @@ primary_region = "waw"
 
 [env]
   PORT = "8080"
+  STORAGE = "REDIS"
+  QUEUE = "REDIS"
 
 [http_service]
   internal_port = 8080
