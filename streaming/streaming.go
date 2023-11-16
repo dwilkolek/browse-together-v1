@@ -11,16 +11,14 @@ import (
 )
 
 type SessionState struct {
-	sessionId    string
-	clients      map[int64]*websocket.Conn
-	states       map[int64]dto.PositionStateDTO
-	updateNeeded bool
-	lock         sync.Mutex
-	queue        queue.EventQueue
-	active       bool
+	queue.EventQueue
+	sessionId string
+	clients   map[int64]*websocket.Conn
+	lock      sync.Mutex
 }
 
 var mu = sync.Mutex{}
+
 var state map[string]*SessionState = make(map[string]*SessionState)
 
 func (state *SessionState) lockMe(reason string) {
@@ -35,39 +33,9 @@ func (state *SessionState) addMember(conn *websocket.Conn) int64 {
 	state.lockMe("addClient")
 	defer state.unlockMe("addClient")
 	log.Printf("New client. In total %d clients\n", len(state.clients))
-	memberId := state.queue.NextMemberId()
+	memberId := state.NextMemberId()
 	state.clients[memberId] = conn
 	return memberId
-}
-
-func (state *SessionState) removeMember(memberId int64) {
-	state.lockMe("deleteClient")
-	defer state.unlockMe("deleteClient")
-	log.Printf("Removing client. In total %d clients\n", len(state.clients))
-	delete(state.states, memberId)
-	delete(state.clients, memberId)
-	state.updateNeeded = true
-}
-func (state *SessionState) newPosition(newPosition dto.PositionStateDTO) {
-	state.lockMe("newPosition")
-	defer state.unlockMe("newPosition")
-	state.states[newPosition.MemberId] = newPosition
-	state.updateNeeded = true
-}
-
-func (state *SessionState) SessionMemberPositionChange(newPosition dto.PositionStateDTO) {
-	state.queue.SessionMemberPositionChange(newPosition)
-}
-func (state *SessionState) OnSessionClosed() <-chan struct{} {
-	return state.queue.OnSessionClosed()
-}
-func (state *SessionState) MemberLeft(memberId int64) {
-	state.lockMe("MemberLeft")
-	defer state.unlockMe("MemberLeft")
-	if _, ok := state.states[memberId]; ok {
-		state.removeMember(memberId)
-		state.queue.MemberLeft(memberId)
-	}
 }
 
 func JoinSession(sessionId string, conn *websocket.Conn) (int64, *SessionState) {
@@ -77,34 +45,22 @@ func JoinSession(sessionId string, conn *websocket.Conn) (int64, *SessionState) 
 	defer mu.Unlock()
 	if state[sessionId] == nil {
 		queue := queue.GetEventQueueForSession(sessionId)
-		state[sessionId] = &SessionState{
-			sessionId:    sessionId,
-			clients:      map[int64]*websocket.Conn{},
-			states:       queue.GetSnapshot(),
-			updateNeeded: true,
-			queue:        queue,
+		session := &SessionState{
+			EventQueue: queue,
+			sessionId:  sessionId,
+			clients:    map[int64]*websocket.Conn{},
 		}
+		session.Initalize()
 
-		go onMemberLeave(state[sessionId], queue)
-		go onPositionUpdate(state[sessionId], queue)
-		go notifyClientsLoop(state[sessionId], queue)
+		go notifyClientsLoop(session, queue)
 		go listenForSessionClose(queue, sessionId)
-
+		state[sessionId] = session
 	}
 
 	memberId := state[sessionId].addMember(conn)
 
 	return memberId, state[sessionId]
 
-}
-
-func onMemberLeave(sessionState *SessionState, queue queue.EventQueue) {
-	memberLeftChan := queue.OnMemberLeave()
-	for {
-		memberId := <-memberLeftChan
-		log.Println("onMemberLeave")
-		sessionState.removeMember(memberId)
-	}
 }
 
 func CloseSession(sessionId string) {
@@ -114,21 +70,7 @@ func CloseSession(sessionId string) {
 	mu.Lock()
 	defer mu.Unlock()
 	if state[sessionId] != nil {
-		state[sessionId].queue.CloseSession()
-	}
-
-}
-
-func onPositionUpdate(sessionState *SessionState, queue queue.EventQueue) {
-	eventChan := queue.OnPositionChanged()
-	// Start listening for messages
-	for {
-		positionState, ok := <-eventChan
-		if !ok {
-			break
-		}
-
-		sessionState.newPosition(positionState)
+		state[sessionId].CloseSession()
 	}
 
 }
@@ -152,18 +94,18 @@ func notifyClientsLoop(sessionState *SessionState, queue queue.EventQueue) {
 }
 
 func notifyClients(sessionState *SessionState) {
-	if !sessionState.updateNeeded {
+	if !sessionState.RefreshNeeded() {
 		return
 	}
 	sessionState.lockMe("notifyClients")
 	defer func() {
-		sessionState.updateNeeded = false
 		sessionState.unlockMe("notifyClients")
 	}()
 	var err error
 	for connClientId, conn := range sessionState.clients {
 		toSend := []dto.PositionStateDTO{}
-		for _, ps := range sessionState.states {
+		snapshot := sessionState.GetSnapshot()
+		for _, ps := range snapshot {
 			if ps.Selector != "" {
 				toSend = append(toSend, ps)
 			}
@@ -173,7 +115,6 @@ func notifyClients(sessionState *SessionState) {
 			log.Println("write:", err)
 
 			defer func(connClientId int64) {
-				delete(sessionState.states, connClientId)
 				delete(sessionState.clients, connClientId)
 			}(connClientId)
 		}

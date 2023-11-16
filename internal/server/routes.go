@@ -115,7 +115,6 @@ func (s *FiberServer) sessionHandler(c *websocket.Conn) {
 	}()
 
 	for {
-		log.Println("Loop")
 
 		select {
 		case pos := <-newMessage:

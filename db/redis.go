@@ -3,11 +3,10 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/dwilkolek/browse-together-api/clients"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -21,22 +20,8 @@ type RedisStore struct {
 
 func CreateRedisStore() RedisStore {
 	return RedisStore{
-		createRedisClient(),
+		clients.CreateRedisClient(),
 	}
-}
-func createRedisClient() *redis.Client {
-	addr := os.Getenv("REDIS_URL")
-	if addr == "" {
-		addr = "redis://default:@localhost:6379/0"
-
-	}
-	opt, err := redis.ParseURL(addr)
-	fmt.Printf("%v\n", opt)
-	if err != nil {
-		panic(err)
-	}
-
-	return redis.NewClient(opt)
 }
 
 func (s *RedisStore) StoreSession(session Session) error {
