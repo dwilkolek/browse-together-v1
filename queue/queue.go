@@ -3,13 +3,14 @@ package queue
 import (
 	"os"
 	"sync"
+	"time"
 
 	"github.com/dwilkolek/browse-together-api/clients"
 	"github.com/dwilkolek/browse-together-api/dto"
 )
 
 type EventQueue interface {
-	Initalize()
+	Initialise()
 	GetSnapshot() map[int64]dto.PositionStateDTO
 	SessionMemberPositionChange(update dto.PositionStateDTO)
 	MemberLeft(memberId int64)
@@ -49,4 +50,16 @@ func GetEventQueueForSession(sessionId string) EventQueue {
 	}
 
 	panic("Unknown QUEUE config")
+}
+
+func validPositionStates(states map[int64]dto.PositionStateDTO) map[int64]dto.PositionStateDTO {
+	var filtered = make(map[int64]dto.PositionStateDTO)
+	for memberId, state := range states {
+		inactiveForMinute := time.Now().UnixMilli() > state.UpdatedAt+1*time.Minute.Milliseconds()
+		validLocation := state.Location != ""
+		if !inactiveForMinute && validLocation {
+			filtered[memberId] = state
+		}
+	}
+	return filtered
 }

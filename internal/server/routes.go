@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -105,11 +106,12 @@ func (s *FiberServer) sessionHandler(c *websocket.Conn) {
 			var event dto.UpdatePositionCmdDTO
 			json.Unmarshal(msg, &event)
 			newMessage <- dto.PositionStateDTO{
-				MemberId: memberId,
-				X:        event.X,
-				Y:        event.Y,
-				Selector: event.Selector,
-				Location: event.Location,
+				MemberId:  memberId,
+				X:         event.X,
+				Y:         event.Y,
+				Selector:  event.Selector,
+				Location:  event.Location,
+				UpdatedAt: time.Now().UnixMilli(),
 			}
 		}
 	}()

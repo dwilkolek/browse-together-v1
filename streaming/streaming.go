@@ -1,6 +1,7 @@
 package streaming
 
 import (
+	"github.com/dwilkolek/browse-together-api/config"
 	"log"
 	"sync"
 	"time"
@@ -13,47 +14,50 @@ import (
 type SessionState struct {
 	queue.EventQueue
 	sessionId string
-	clients   map[int64]*websocket.Conn
+	members   map[int64]*websocket.Conn
 	lock      sync.Mutex
 }
 
 var mu = sync.Mutex{}
 
-var state map[string]*SessionState = make(map[string]*SessionState)
+var state = make(map[string]*SessionState)
 
 func (state *SessionState) lockMe(reason string) {
-	log.Printf("Locking %s: %s\n", reason, state.sessionId)
+	if config.DEBUG {
+		log.Printf("Locking %s: %s\n", reason, state.sessionId)
+	}
 	state.lock.Lock()
 }
 func (state *SessionState) unlockMe(reason string) {
-	log.Printf("Unlock %s: %s\n", reason, state.sessionId)
+	if config.DEBUG {
+		log.Printf("Unlock %s: %s\n", reason, state.sessionId)
+	}
 	state.lock.Unlock()
 }
 func (state *SessionState) addMember(conn *websocket.Conn) int64 {
 	state.lockMe("addClient")
 	defer state.unlockMe("addClient")
-	log.Printf("New client. In total %d clients\n", len(state.clients))
+	log.Printf("New client. In total %d members\n", len(state.members))
 	memberId := state.NextMemberId()
-	state.clients[memberId] = conn
+	state.members[memberId] = conn
 	return memberId
 }
 
 func JoinSession(sessionId string, conn *websocket.Conn) (int64, *SessionState) {
-
 	log.Printf("Starting position listening %s\n", sessionId)
 	mu.Lock()
 	defer mu.Unlock()
 	if state[sessionId] == nil {
-		queue := queue.GetEventQueueForSession(sessionId)
+		queueForSession := queue.GetEventQueueForSession(sessionId)
 		session := &SessionState{
-			EventQueue: queue,
+			EventQueue: queueForSession,
 			sessionId:  sessionId,
-			clients:    map[int64]*websocket.Conn{},
+			members:    map[int64]*websocket.Conn{},
 		}
-		session.Initalize()
+		session.Initialise()
 
-		go notifyClientsLoop(session, queue)
-		go listenForSessionClose(queue, sessionId)
+		go notifyClientsLoop(session, queueForSession)
+		go listenForSessionClose(queueForSession, sessionId)
 		state[sessionId] = session
 	}
 
@@ -64,9 +68,7 @@ func JoinSession(sessionId string, conn *websocket.Conn) (int64, *SessionState) 
 }
 
 func CloseSession(sessionId string) {
-
 	log.Printf("Closing session %s\n", sessionId)
-
 	mu.Lock()
 	defer mu.Unlock()
 	if state[sessionId] != nil {
@@ -84,7 +86,6 @@ func notifyClientsLoop(sessionState *SessionState, queue queue.EventQueue) {
 			case <-ticker.C:
 				notifyClients(sessionState)
 			case <-done:
-				log.Println("stop " + sessionState.sessionId)
 				ticker.Stop()
 				return
 			}
@@ -102,8 +103,9 @@ func notifyClients(sessionState *SessionState) {
 		sessionState.unlockMe("notifyClients")
 	}()
 	var err error
-	for connClientId, conn := range sessionState.clients {
-		toSend := []dto.PositionStateDTO{}
+	var unresponsiveMemberId []int64
+	for memberId, conn := range sessionState.members {
+		var toSend []dto.PositionStateDTO
 		snapshot := sessionState.GetSnapshot()
 		for _, ps := range snapshot {
 			if ps.Selector != "" {
@@ -112,12 +114,12 @@ func notifyClients(sessionState *SessionState) {
 		}
 
 		if err = conn.WriteJSON(toSend); err != nil {
-			log.Println("write:", err)
-
-			defer func(connClientId int64) {
-				delete(sessionState.clients, connClientId)
-			}(connClientId)
+			log.Printf("Member[%d] is not responsive, session %s. %s\n", memberId, sessionState.sessionId, err)
+			unresponsiveMemberId = append(unresponsiveMemberId, memberId)
 		}
+	}
+	for _, memberId := range unresponsiveMemberId {
+		delete(sessionState.members, memberId)
 	}
 }
 

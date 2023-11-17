@@ -16,7 +16,7 @@ type InMemoryEventQueue struct {
 	closed            bool
 }
 
-func (q *InMemoryEventQueue) Initalize() {
+func (q *InMemoryEventQueue) Initialise() {
 	//noop
 }
 func (q *InMemoryEventQueue) RefreshNeeded() bool {
@@ -28,6 +28,7 @@ func (q *InMemoryEventQueue) GetSnapshot() map[int64]dto.PositionStateDTO {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.outdated = false
+	q.cache = validPositionStates(q.cache)
 	return q.cache
 }
 func (q *InMemoryEventQueue) SessionMemberPositionChange(update dto.PositionStateDTO) {

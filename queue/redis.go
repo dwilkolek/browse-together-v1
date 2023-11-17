@@ -4,18 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/dwilkolek/browse-together-api/config"
 	"log"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dwilkolek/browse-together-api/dto"
 	"github.com/redis/go-redis/v9"
 )
 
-const internalCommsPrefix string = "internal-"
-const communicationChannelPrefix string = "pubsub-"
+const sessionCommunicationChannelPrefix string = "communication-"
+const sessionPositionUpdatesChannelPrefix string = "position-"
 const memberIdPrefix string = "memberId-"
+const snapshotPrefix string = "snapshot-"
 
 type RedisEventQueue struct {
 	sessionId         string
@@ -25,27 +28,53 @@ type RedisEventQueue struct {
 	mu                sync.Mutex
 	outdated          bool
 	closed            bool
+	initialized       bool
 }
 
-func (q *RedisEventQueue) Initalize() {
-	fmt.Println("Init")
+func (q *RedisEventQueue) Initialise() {
+
+	q.cache = make(map[int64]dto.PositionStateDTO)
+	var cacheTmp map[int64]dto.PositionStateDTO
+	if snapshot, err := q.redisClient.Get(context.Background(), snapshotPrefix+q.sessionId).Result(); err == nil {
+		if err = json.Unmarshal([]byte(snapshot), &cacheTmp); err == nil {
+			q.cache = cacheTmp
+		}
+	}
+
 	go func() {
-		fmt.Println("Init 2")
-		// Subscribe to the channel
-		pubSub := q.redisClient.Subscribe(context.Background(), communicationChannelPrefix+q.sessionId)
-		defer pubSub.Close()
+		pubSub := q.redisClient.Subscribe(context.Background(), sessionPositionUpdatesChannelPrefix+q.sessionId)
+		defer func(pubSub *redis.PubSub) {
+			err := pubSub.Close()
+			if err != nil {
+				log.Default().Println("Error closing position changed channel", err)
+			}
+		}(pubSub)
 
-		pubSubInternal := q.redisClient.Subscribe(context.Background(), internalCommsPrefix+q.sessionId)
-		defer pubSubInternal.Close()
+		pubSubInternal := q.redisClient.Subscribe(context.Background(), sessionCommunicationChannelPrefix+q.sessionId)
+		defer func(pubSubInternal *redis.PubSub) {
+			err := pubSubInternal.Close()
+			if err != nil {
+				log.Default().Println("Error closing session communication channel", err)
+			}
+		}(pubSubInternal)
 
-		// Channel to receive subscription messages
+		persistCacheTicker := time.NewTicker(time.Minute).C
 		subscriptionChannel := pubSub.Channel()
-
 		subscriptionChannelInternal := pubSubInternal.Channel()
-		// Start listening for messages
+
 		for {
-			fmt.Println("Something happens")
 			select {
+			case <-persistCacheTicker:
+				{
+					func() {
+						q.mu.Lock()
+						defer q.mu.Unlock()
+						q.cache = validPositionStates(q.cache)
+						if snapshot, err := json.Marshal(q.cache); err == nil {
+							q.redisClient.Set(context.Background(), snapshotPrefix+q.sessionId, snapshot, time.Hour)
+						}
+					}()
+				}
 			case msg, ok := <-subscriptionChannel:
 				{
 					if !ok {
@@ -57,8 +86,9 @@ func (q *RedisEventQueue) Initalize() {
 					if err != nil {
 						log.Printf("Failed to unmarshal PositionStateDTO: %s\n", err)
 					}
-
-					fmt.Printf("Received message from %s: %s\n", msg.Channel, msg.Payload)
+					if config.DEBUG {
+						fmt.Printf("Received message from %s: %s\n", msg.Channel, msg.Payload)
+					}
 					func() {
 						q.mu.Lock()
 						defer q.mu.Unlock()
@@ -71,12 +101,14 @@ func (q *RedisEventQueue) Initalize() {
 					if !ok {
 						break
 					}
-					fmt.Printf("Received message from %s: %s\n", msg.Channel, msg.Payload)
+					if config.DEBUG {
+						fmt.Printf("Received message from %s: %s\n", msg.Channel, msg.Payload)
+					}
 					parts := strings.Split(msg.Payload, ";")
 					if parts[0] == "MEM_LEFT" {
 						memberId, err := strconv.ParseInt(parts[1], 10, 64)
 						if err != nil {
-							log.Println("Failed to conver str to memberId", err)
+							log.Println("Failed to convert str to memberId", err)
 							continue
 						}
 						func(memberId int64) {
@@ -123,14 +155,14 @@ func (q *RedisEventQueue) SessionMemberPositionChange(update dto.PositionStateDT
 	if err != nil {
 		log.Printf("Failed to marshal PositionStateDTO: %s\n", err)
 	}
-	q.redisClient.Publish(context.Background(), communicationChannelPrefix+q.sessionId, data)
+	q.redisClient.Publish(context.Background(), sessionPositionUpdatesChannelPrefix+q.sessionId, data)
 
 }
 func (q *RedisEventQueue) MemberLeft(memberId int64) {
 	if q.closed {
 		return
 	}
-	q.redisClient.Publish(context.Background(), internalCommsPrefix+q.sessionId, fmt.Sprintf("MEM_LEFT;%d", memberId))
+	q.redisClient.Publish(context.Background(), sessionCommunicationChannelPrefix+q.sessionId, fmt.Sprintf("MEM_LEFT;%d", memberId))
 
 }
 func (q *RedisEventQueue) CloseSession() {
@@ -140,7 +172,7 @@ func (q *RedisEventQueue) CloseSession() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.closed = true
-	q.redisClient.Publish(context.Background(), internalCommsPrefix+q.sessionId, "CLOSED")
+	q.redisClient.Publish(context.Background(), sessionCommunicationChannelPrefix+q.sessionId, "CLOSED")
 }
 func (q *RedisEventQueue) NextMemberId() int64 {
 	memberId, err := q.redisClient.Incr(context.Background(), memberIdPrefix+q.sessionId).Result()

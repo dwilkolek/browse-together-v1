@@ -10,7 +10,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const sessionsKey = "sessions"
 const sessionPrefix = "session-"
 const lockPrefix = "lock-"
 
@@ -29,13 +28,8 @@ func (s *RedisStore) StoreSession(session Session) error {
 	defer s.releaseSession(session.Id)
 	jsonStr, _ := json.Marshal(session)
 
-	if _, err := s.SAdd(context.Background(), sessionsKey, session.Id).Result(); err != nil {
-		log.Printf("Err! %s\n", err)
-		return err
-	}
-
-	if _, err := s.Set(context.Background(), sessionPrefix+session.Id, jsonStr, 0).Result(); err != nil {
-		log.Printf("Err! %s\n", err)
+	if _, err := s.Set(context.Background(), sessionPrefix+session.Id, jsonStr, 8*time.Hour).Result(); err != nil {
+		log.Printf("Failed storing session: %s\n", err)
 		return err
 	}
 
@@ -44,17 +38,31 @@ func (s *RedisStore) StoreSession(session Session) error {
 }
 
 func (s *RedisStore) GetSessions() []Session {
-	var sessions []Session = make([]Session, 0)
-	value, err := s.SMembers(context.Background(), sessionsKey).Result()
-	if err != nil {
-		log.Printf("Err! %s\n", err)
-		return sessions
+	var keys []string
+	var cursor uint64
+	for {
+
+		var err error
+		keys, cursor, err = s.Client.Scan(context.Background(), cursor, sessionPrefix+"*", 0).Result()
+		if err != nil {
+			panic(err)
+		}
+
+		for _, key := range keys {
+			keys = append(keys, key[len(sessionPrefix):])
+		}
+
+		if cursor == 0 { // no more keys
+			break
+		}
 	}
-	for _, sessionId := range value {
+
+	var sessions = make([]Session, 0)
+
+	for _, sessionId := range keys {
 		if session, err := s.GetSession(sessionId); err == nil {
 			sessions = append(sessions, session)
 		}
-
 	}
 
 	return sessions
@@ -64,10 +72,13 @@ func (s *RedisStore) GetSession(id string) (Session, error) {
 	var session Session
 	value, err := s.Get(context.Background(), sessionPrefix+id).Result()
 	if err != nil {
-		log.Printf("Err! %s\n", err)
+		log.Printf("No such session %s: %s\n", id, err)
 		return session, err
 	}
-	json.Unmarshal([]byte(value), &session)
+	err = json.Unmarshal([]byte(value), &session)
+	if err != nil {
+		return session, err
+	}
 
 	return session, nil
 }
@@ -75,10 +86,6 @@ func (s *RedisStore) GetSession(id string) (Session, error) {
 func (s *RedisStore) DeleteSession(id string) error {
 	s.lockSession(id)
 	defer s.releaseSession(id)
-	if _, err := s.SRem(context.TODO(), sessionsKey, id).Result(); err != nil {
-		log.Printf("Failed to remove from sessions %s\n", id)
-		return err
-	}
 	if _, err := s.Del(context.TODO(), sessionPrefix+id).Result(); err != nil {
 		log.Printf("Failed to remove session %s\n", id)
 		return err

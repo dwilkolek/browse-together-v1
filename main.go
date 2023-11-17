@@ -24,7 +24,7 @@ func main() {
 
 	log.Printf("Running %s mode on port %s", env, port)
 
-	server := server.New()
+	srv := server.New()
 
-	log.Fatal(server.Listen(fmt.Sprintf(":%s", port)))
+	log.Fatal(srv.Listen(fmt.Sprintf(":%s", port)))
 }
