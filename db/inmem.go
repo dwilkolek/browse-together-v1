@@ -2,15 +2,34 @@ package db
 
 import (
 	"errors"
+	"github.com/google/uuid"
 	"slices"
 	"sync"
 )
 
 type InMemoryStore struct {
-	sessions []Session
-	lock     sync.Mutex
+	sessions     []Session
+	rejoinTokens map[string]int64
+	lock         sync.Mutex
 }
 
+func (s *InMemoryStore) StoreRejoinToken(memberId int64) string {
+	s.lockMe()
+	defer s.releaseMe()
+	token := uuid.New().String()
+	s.rejoinTokens[token] = memberId
+	return token
+}
+func (s *InMemoryStore) GetMemberIdForRejoinToken(token string) (int64, error) {
+	s.lockMe()
+	defer s.releaseMe()
+	memberId, ok := s.rejoinTokens[token]
+	if ok {
+		return memberId, nil
+	} else {
+		return 0, errors.New("no such token")
+	}
+}
 func (s *InMemoryStore) StoreSession(session Session) error {
 	s.lockMe()
 	defer s.releaseMe()

@@ -92,9 +92,26 @@ func (s *FiberServer) sessionHandler(c *websocket.Conn) {
 	)
 	defer c.Close()
 
-	memberId, sessionState := streaming.JoinSession(sessionId, c)
+	if _, err := db.GetDb().GetSession(sessionId); err != nil {
+		return
+	}
+
+	var memberId int64 = 0
+	rejoinToken := c.Query("rejoinToken", "")
+	if rejoinToken != "" {
+		memberId, _ = db.GetDb().GetMemberIdForRejoinToken(rejoinToken)
+	}
+
+	memberId, sessionState := streaming.JoinSession(sessionId, c, memberId)
 	done := sessionState.OnSessionClosed()
-	var newMessage chan dto.PositionStateDTO = make(chan dto.PositionStateDTO)
+	var newMessage = make(chan dto.PositionStateDTO)
+
+	newRejoinToken := db.GetDb().StoreRejoinToken(memberId)
+	err = c.WriteJSON(fmt.Sprintf("%d;%s", memberId, newRejoinToken))
+	if err != nil {
+		fmt.Printf("Error sending first message: %s\n", err)
+		return
+	}
 
 	go func() {
 		for {

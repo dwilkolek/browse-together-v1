@@ -10,6 +10,8 @@ type Db interface {
 	GetSessions() []Session
 	GetSession(id string) (Session, error)
 	DeleteSession(id string) error
+	StoreRejoinToken(memberId int64) string
+	GetMemberIdForRejoinToken(token string) (int64, error)
 }
 
 type Session struct {

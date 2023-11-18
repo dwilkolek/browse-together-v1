@@ -3,7 +3,9 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"github.com/google/uuid"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/dwilkolek/browse-together-api/clients"
@@ -12,6 +14,7 @@ import (
 
 const sessionPrefix = "session-"
 const lockPrefix = "lock-"
+const rejoinPrefix = "rejoin-"
 
 type RedisStore struct {
 	*redis.Client
@@ -21,6 +24,23 @@ func CreateRedisStore() RedisStore {
 	return RedisStore{
 		clients.CreateRedisClient(),
 	}
+}
+
+func (s *RedisStore) StoreRejoinToken(memberId int64) string {
+	token := uuid.New().String()
+	s.Client.Set(context.Background(), rejoinPrefix+token, memberId, time.Hour).Result()
+	return token
+}
+func (s *RedisStore) GetMemberIdForRejoinToken(token string) (int64, error) {
+	result, err := s.Client.Get(context.Background(), rejoinPrefix+token).Result()
+	if err != nil {
+		return 0, err
+	}
+	parseInt, err := strconv.ParseInt(result, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return parseInt, nil
 }
 
 func (s *RedisStore) StoreSession(session Session) error {

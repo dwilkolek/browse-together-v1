@@ -43,7 +43,7 @@ func (state *SessionState) addMember(conn *websocket.Conn) int64 {
 	return memberId
 }
 
-func JoinSession(sessionId string, conn *websocket.Conn) (int64, *SessionState) {
+func JoinSession(sessionId string, conn *websocket.Conn, memberId int64) (int64, *SessionState) {
 	log.Printf("Starting position listening %s\n", sessionId)
 	mu.Lock()
 	defer mu.Unlock()
@@ -61,7 +61,9 @@ func JoinSession(sessionId string, conn *websocket.Conn) (int64, *SessionState) 
 		state[sessionId] = session
 	}
 
-	memberId := state[sessionId].addMember(conn)
+	if memberId < 1 {
+		memberId = state[sessionId].addMember(conn)
+	}
 
 	return memberId, state[sessionId]
 
@@ -105,7 +107,7 @@ func notifyClients(sessionState *SessionState) {
 	var err error
 	var unresponsiveMemberId []int64
 	for memberId, conn := range sessionState.members {
-		var toSend []dto.PositionStateDTO
+		toSend := []dto.PositionStateDTO{}
 		snapshot := sessionState.GetSnapshot()
 		for _, ps := range snapshot {
 			if ps.Selector != "" {
