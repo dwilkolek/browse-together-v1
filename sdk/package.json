@@ -1,0 +1,44 @@
+{
+  "name": "browse-together-sdk",
+  "version": "0.0.1-alpha",
+  "description": "",
+  "main": "./lib/cjs/index.js",
+  "module": "./lib/esm/index.js",
+  "files": [
+    "lib/**/*"
+  ],
+  "types": "./lib/cjs/types/index.d.ts",
+  "scripts": {
+    "clean": "rm -rf ./lib",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p ./configs/tsconfig.esm.json && mv lib/esm/index.js lib/esm/index.mjs",
+    "build:cjs": "tsc -p ./configs/tsconfig.cjs.json",
+    "prepack": "npm run build"
+
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dwilkolek/browse-together-sdk.git"
+  },
+  "author": "Damian Wilkolek",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dwilkolek/browse-together-sdk/issues"
+  },
+  "homepage": "https://github.com/dwilkolek/browse-together-sdk#readme",
+  "dependencies": {
+    "typescript": "^5.2.2"
+  }, 
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/esm/types/index.d.ts",
+        "default": "./lib/esm/index.mjs"
+      },
+      "require": {
+        "types": "./lib/cjs/types/index.d.ts",
+        "default": "./lib/cjs/index.js"
+      }
+    }
+  }
+}
