@@ -1,6 +1,6 @@
 {
-  "name": "browse-together-sdk",
-  "version": "0.0.1-alpha",
+  "name": "browse-together-v1-sdk",
+  "version": "0.0.1",
   "description": "",
   "main": "./lib/cjs/index.js",
   "module": "./lib/esm/index.js",
@@ -18,14 +18,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dwilkolek/browse-together-sdk.git"
+    "url": "git+https://github.com/dwilkolek/browse-together-v1.git"
   },
   "author": "Damian Wilkolek",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/dwilkolek/browse-together-sdk/issues"
+    "url": "https://github.com/dwilkolek/browse-together-v1/issues"
   },
-  "homepage": "https://github.com/dwilkolek/browse-together-sdk#readme",
+  "homepage": "https://github.com/dwilkolek/browse-together-v1#readme",
   "dependencies": {
     "typescript": "^5.2.2"
   }, 
