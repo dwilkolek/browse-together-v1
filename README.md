@@ -7,7 +7,7 @@
    - `make dev` to run in memory
    - `make dev_redis` to run on redis
 
-1. Build SDK.
+1. Build SDK
 
    - `cd sdk && npm ci && npm run build`
 
