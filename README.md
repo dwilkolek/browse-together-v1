@@ -41,7 +41,9 @@ function createSdk(url: string): BrowseTogetherSdk {
 }
 ```
 
+## Deployment to fly.io
 
+`make fly`
 
 ## Deploy backend to fly.dev
 
