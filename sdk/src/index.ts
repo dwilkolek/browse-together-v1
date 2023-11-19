@@ -49,20 +49,24 @@ export class BrowseTogetherSdk {
   constructor(
     private url: String,
     public isTrackedElement: (e: Element) => boolean = () => true,
-    public cursorFactory: () => HTMLElement = () => {
+    public cursorFactory: (
+      memberId: number,
+      givenIdentifier: string
+    ) => HTMLElement = (memberId: number, givenIdentifier: string) => {
       const cursor = document.createElement("div");
-      cursor.dataset.memberid = `${this.memberId}`;
-      cursor.style.position = "absolute";
+      cursor.dataset.memberid = `${memberId}`;
+      cursor.dataset.givenIdentifier = givenIdentifier;
       cursor.style.background = "#ad0c78";
       cursor.style.width = "12px";
       cursor.style.height = "12px";
       cursor.style.borderRadius = "50px";
       cursor.style.marginLeft = "-6px";
       cursor.style.marginTop = "-6px";
-      cursor.style.pointerEvents = "none";
       return cursor;
-    }
+    },
   ) {}
+
+  public drawYourself = false;
 
   public onDisconnect: () => void = () => {};
 
@@ -99,13 +103,16 @@ export class BrowseTogetherSdk {
 
   public joinSession(
     session: Session,
+    givenIdentifier: string,
     rejoinToken: string | undefined = undefined
   ): Promise<string | undefined> {
     return new Promise<string | undefined>(async (resolve, reject) => {
-      console.log("Joining session", session);
       this.session = session;
       const response = await fetch(
-        `${this.url}/api/v1/sessions/${session.id}/joinUrl`
+        `${this.url}/api/v1/sessions/${session.id}/join`,
+        {
+          method: "POST",
+        }
       );
       const json: { joinUrl: string } = await response.json();
       const joinUrl = json.joinUrl.startsWith("/")
@@ -116,12 +123,10 @@ export class BrowseTogetherSdk {
 
       this.sock = new WebSocket(joinUrl);
       this.sock.onclose = () => {
-        console.log("Closing!");
         this.cleanup();
       };
       this.sock.onmessage = (event: MessageEvent<string>) => {
         if (this.memberId == null) {
-          debugger
           const data = JSON.parse(event.data).split(";");
           this.memberId = parseInt(data[0]);
           this.rejoinToken = data[1];
@@ -138,13 +143,18 @@ export class BrowseTogetherSdk {
         });
         for (const member of positions) {
           let cursorEl = this.cursors[member.memberId];
-          if (!member.selector || member.location !== window.location.href) {
-            //|| member.memberId == this.memberId
+          if (!member.selector || member.location !== window.location.href || (!this.drawYourself && member.memberId == this.memberId)) {
             continue;
           }
           const locator = member as ValidLocator;
           if (!cursorEl) {
-            const cursorEl = this.cursorFactory()
+            const cursorEl = this.cursorFactory(
+              member.memberId,
+              member.givenIdentifier
+            );
+            cursorEl.style.pointerEvents = "none"; 
+            cursorEl.style.position = "absolute"; 
+
             this.updateNodePosition(locator, cursorEl);
             document.body.appendChild(cursorEl);
             this.cursors[member.memberId] = cursorEl;
@@ -153,9 +163,8 @@ export class BrowseTogetherSdk {
           }
           this.cursors[member.memberId].style.display = "block";
         }
-
       };
-      this.setup();
+      this.setup(givenIdentifier);
     });
   }
 
@@ -237,50 +246,55 @@ export class BrowseTogetherSdk {
     return querySelector;
   }
 
-  private setup() {
+  private setup(identifier: string) {
     clearInterval(this.sender);
-    this.sender = setInterval(() => {
-      const msg = this.toSend;
-      if (!this.isConnected) {
-        clearInterval(this.sender);
-        return;
-      }
-      if (this.sock && this.toSend != this.lastSend && this.isConnected) {
-        this.lastSend = this.toSend;
-        this.sock.send(msg);
-      }
-    }, 16);
-
-    window.addEventListener("pointermove", (ev) => {
-      if (this.sock && this.isConnected) {
-        const hovered = document.querySelectorAll(":hover:not(.cursor)");
-        let selectedEl: Element | undefined = undefined;
-        for (let i = hovered.length - 1; i > 0; i--) {
-          const tmpEl = hovered[i];
-          if (this.isTrackedElement(tmpEl)) {
-            selectedEl = tmpEl;
-            break;
-          }
+    this.sock?.addEventListener('open', () => {
+      this.sock?.send("Identifier:" + identifier);
+      this.sender = setInterval(() => {
+        const msg = this.toSend;
+        if (!this.isConnected) {
+          clearInterval(this.sender);
+          return;
         }
-
-        let nextPosition = OUT_OF_TRACKING_MESSAGE_JSON;
-        if (selectedEl) {
-          const rect = selectedEl.getBoundingClientRect();
-          const querySelector = this.createQuerySelector(selectedEl);
-
-          if (querySelector) {
-            const nextPositionUpdateCmd: UpdatePositionCmd = {
-              location: window.location.href,
-              selector: querySelector,
-              x: (ev.clientX - rect.left) / rect.width,
-              y: (ev.clientY - rect.top) / rect.height,
-            };
-            nextPosition = JSON.stringify(nextPositionUpdateCmd);
-          }
+        if (this.sock && this.toSend != this.lastSend && this.isConnected) {
+          this.lastSend = this.toSend;
+          this.sock.send(msg);
         }
-        this.toSend = nextPosition;
-      }
-    });
+      }, 16);
+  
+      window.addEventListener("pointermove", (ev) => {
+        if (this.sock && this.isConnected) {
+          const hovered = document.querySelectorAll(":hover:not(.cursor)");
+          let selectedEl: Element | undefined = undefined;
+          for (let i = hovered.length - 1; i > 0; i--) {
+            const tmpEl = hovered[i];
+            if (this.isTrackedElement(tmpEl)) {
+              selectedEl = tmpEl;
+              break;
+            }
+          }
+  
+          let nextPosition = OUT_OF_TRACKING_MESSAGE_JSON;
+          if (selectedEl) {
+            const rect = selectedEl.getBoundingClientRect();
+            const querySelector = this.createQuerySelector(selectedEl);
+  
+            if (querySelector) {
+              const nextPositionUpdateCmd: UpdatePositionCmd = {
+                location: window.location.href,
+                selector: querySelector,
+                x: (ev.clientX - rect.left) / rect.width,
+                y: (ev.clientY - rect.top) / rect.height,
+              };
+              nextPosition = JSON.stringify(nextPositionUpdateCmd);
+            }
+          }
+          this.toSend = nextPosition;
+        }
+      });
+    })
+   
+    
   }
 
   private updateNodePosition(
@@ -306,7 +320,7 @@ export class BrowseTogetherSdk {
 
   private cleanup() {
     this.memberId = undefined;
-    this.rejoinToken = undefined
+    this.rejoinToken = undefined;
     this.session = undefined;
     this.cursors.forEach((e) => e.remove());
     this.cursors = [];

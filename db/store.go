@@ -36,8 +36,9 @@ func GetDb() Db {
 
 			if mode == "IN_MEMORY" {
 				db = &InMemoryStore{
-					sessions: []Session{},
-					lock:     sync.Mutex{},
+					sessions:     []Session{},
+					lock:         sync.Mutex{},
+					rejoinTokens: make(map[string]int64),
 				}
 			}
 

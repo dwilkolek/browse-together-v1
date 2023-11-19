@@ -1,14 +1,5 @@
 package dto
 
-type SessionMemberDTO struct {
-	GivenIdentifier string  `json:"givenIdentifier"`
-	MemberId        int64   `json:"memberId"`
-	X               float64 `json:"x"`
-	Y               float64 `json:"y"`
-	Selector        string  `json:"selector"`
-	Location        string  `json:"location"`
-}
-
 type SessionDTO struct {
 	Id                string `json:"id"`
 	JoinUrl           string `json:"joinUrl"`
@@ -25,10 +16,11 @@ type UpdatePositionCmdDTO struct {
 }
 
 type PositionStateDTO struct {
-	MemberId  int64   `json:"memberId"`
-	X         float64 `json:"x"`
-	Y         float64 `json:"y"`
-	Selector  string  `json:"selector"`
-	Location  string  `json:"location"`
-	UpdatedAt int64   `json:"updatedAt"`
+	GivenIdentifier string  `json:"givenIdentifier"`
+	MemberId        int64   `json:"memberId"`
+	X               float64 `json:"x"`
+	Y               float64 `json:"y"`
+	Selector        string  `json:"selector"`
+	Location        string  `json:"location"`
+	UpdatedAt       int64   `json:"updatedAt"`
 }

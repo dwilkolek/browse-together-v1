@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
@@ -29,7 +30,7 @@ func (s *FiberServer) RegisterFiberRoutes() {
 	v1.Get("/:id", s.getSessionHandler)
 	v1.Delete("/:id", s.deleteSessionHandler)
 
-	v1.Get("/:id/joinUrl", s.getJoinSessionHandler)
+	v1.Post("/:id/join", s.getJoinSessionHandler)
 
 	s.App.Get("/ws/:sessionId/cursors", websocket.New(s.sessionHandler))
 }
@@ -107,6 +108,7 @@ func (s *FiberServer) sessionHandler(c *websocket.Conn) {
 	var newMessage = make(chan dto.PositionStateDTO)
 
 	newRejoinToken := db.GetDb().StoreRejoinToken(memberId)
+	identifier := fmt.Sprintf("member-%d", memberId)
 	err = c.WriteJSON(fmt.Sprintf("%d;%s", memberId, newRejoinToken))
 	if err != nil {
 		fmt.Printf("Error sending first message: %s\n", err)
@@ -120,15 +122,22 @@ func (s *FiberServer) sessionHandler(c *websocket.Conn) {
 				log.Println("read:", err)
 				break
 			}
+
+			if strings.HasPrefix(string(msg), "Identifier:") {
+				identifier = string(msg)[len("Identifier:"):]
+				continue
+			}
+
 			var event dto.UpdatePositionCmdDTO
 			json.Unmarshal(msg, &event)
 			newMessage <- dto.PositionStateDTO{
-				MemberId:  memberId,
-				X:         event.X,
-				Y:         event.Y,
-				Selector:  event.Selector,
-				Location:  event.Location,
-				UpdatedAt: time.Now().UnixMilli(),
+				MemberId:        memberId,
+				X:               event.X,
+				Y:               event.Y,
+				Selector:        event.Selector,
+				Location:        event.Location,
+				UpdatedAt:       time.Now().UnixMilli(),
+				GivenIdentifier: identifier,
 			}
 		}
 	}()

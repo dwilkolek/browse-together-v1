@@ -4,6 +4,26 @@ import { useEffect, useState } from "react";
 import { BrowseTogetherSdk, Session } from "browse-together-sdk";
 import { universe } from "./universe-data";
 
+function createSdk(url: string): BrowseTogetherSdk {
+  const isTrackedElement = (e: Element) => e.classList.contains("planet");
+
+  const cursorFactory: (
+    memberId: number,
+    givenIdentifier: string
+  ) => HTMLElement = (memberId: number, givenIdentifier: string) => {
+    const cursor = document.createElement("div");
+    cursor.innerText = `${memberId}|${givenIdentifier}`;
+    cursor.style.background = "#bbaa44";
+    cursor.style.padding = "4px";
+    cursor.style.pointerEvents = "none";
+    cursor.style.position = "absolute";
+    return cursor;
+  };
+  const sdk = new BrowseTogetherSdk(url, isTrackedElement, cursorFactory);
+  sdk.drawYourself = true;
+  return sdk;
+}
+
 export default function Root() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [connectedTo, setConnectedTo] = useState<Session | null>(null);
@@ -11,12 +31,12 @@ export default function Root() {
     localStorage.getItem("rejoinToken")
   );
   const [rejoinSession, setRejoinSession] = useState<Session | null>(
-    localStorage.getItem("rejoinSession") ? JSON.parse(localStorage.getItem("rejoinSession")!) : null
+    localStorage.getItem("rejoinSession")
+      ? JSON.parse(localStorage.getItem("rejoinSession")!)
+      : null
   );
   const [sdk, setSdk] = useState<BrowseTogetherSdk>(
-    new BrowseTogetherSdk("http://localhost:8080", (e) =>
-      e.classList.contains("planet")
-    )
+    createSdk("http://localhost:8080")
   );
   useEffect(() => {
     sdk.onDisconnect = () => {
@@ -56,53 +76,55 @@ export default function Root() {
               const url =
                 prompt("Browse Together URL", "http://localhost:8080") ??
                 "http://localhost:8080";
-              setSdk(
-                new BrowseTogetherSdk(url, (e) =>
-                  e.classList.contains("planet")
-                )
-              );
+              setSdk(createSdk(url));
             }}
           >
             Connect to
           </button>
         </div>
-
         {!connectedTo &&
           sessions.map((session) => (
             <div key={session.id}>
               {session.name}
               <button
                 onClick={async () => {
-                  const newRejoinToken = await sdk.joinSession(session);
-                  setRejoinToken(newRejoinToken);
+                  const newRejoinToken = await sdk.joinSession(
+                    session,
+                    "Johhny Oil"
+                  );
                   setConnectedTo(session);
                   setRejoinSession(session);
-                  localStorage.setItem("rejoinSession", JSON.stringify(session));
-                  localStorage.setItem("rejoinToken", newRejoinToken);
+                  localStorage.setItem(
+                    "rejoinSession",
+                    JSON.stringify(session)
+                  );
+                  if (newRejoinToken) {
+                    setRejoinToken(newRejoinToken);
+                    localStorage.setItem("rejoinToken", newRejoinToken);
+                  }
                 }}
               >
                 Join!
               </button>
             </div>
           ))}
-        {(!connectedTo &&
-          rejoinToken &&
-          rejoinSession) &&
-          
-                
-                <button
-                  onClick={async () => {
-                    const newRejoinToken = await sdk.joinSession(
-                      rejoinSession,
-                      rejoinToken
-                    );
-                    setRejoinToken(newRejoinToken);
-                    localStorage.setItem("rejoinToken", newRejoinToken);
-                  }}
-                >
-                  Rejoin {rejoinSession.name}!
-                </button>
-          }
+        {!connectedTo && rejoinToken && rejoinSession && (
+          <button
+            onClick={async () => {
+              const newRejoinToken = await sdk.joinSession(
+                rejoinSession,
+                "Johnny Reoil",
+                rejoinToken
+              );
+              if (newRejoinToken) {
+                setRejoinToken(newRejoinToken);
+                localStorage.setItem("rejoinToken", newRejoinToken);
+              }
+            }}
+          >
+            Rejoin {rejoinSession.name}!
+          </button>
+        )}
         <nav>
           <ul>
             {universe.map((g) => (
