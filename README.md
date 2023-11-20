@@ -17,6 +17,8 @@
 
 ## How to integrate
 
+Install sdk: https://www.npmjs.com/package/browse-together-v1-sdk
+Follow the example below:
 ```
 // backendUrl = http://localhost:8080/
 function createSdk(backendUrl: string): BrowseTogetherSdk {

@@ -1,6 +1,6 @@
 {
   "name": "browse-together-v1-sdk",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "",
   "main": "./lib/cjs/index.js",
   "module": "./lib/esm/index.js",
